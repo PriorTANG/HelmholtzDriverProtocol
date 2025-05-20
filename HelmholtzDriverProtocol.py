@@ -39,57 +39,66 @@ class HelmholtzDriver:
             print('串口已关闭')
     def Write(self, message):
         self.ser.write(message)
-
     def Read(self, length):
         return self.ser.read(length)
-
     def Enable(self, id, enable):
          self.Write(CalTx(0x00, enable, id, 0x06))
-         RX = self.Read(8)
-         if Crc16_MODBUS(RX[:6]) == int.from_bytes(RX[6:], byteorder='little'):
-              if RX[:6] == bytes([id, 0x06, 0x00, 0x00, 0x00, enable]):
-                   print('Enable')
-                   return True
-         return False
+         if 0 < id < 8:
+              RX = self.Read(8)
+              if Crc16_MODBUS(RX[:6]) == int.from_bytes(RX[6:], byteorder='little'):
+                   if RX[:6] == bytes([id, 0x06, 0x00, 0x00, 0x00, enable]):
+                        print('Enable')
+                        return True
+              return False
     def SetPWM(self, id, pwm):
          self.Write(CalTx(0x01, pwm, id, 0x06))
-         RX = self.Read(8)
-         if Crc16_MODBUS(RX[:6]) == int.from_bytes(RX[6:], byteorder='little'):
-              expected_response = bytes([id, 0x06, 0x00, 0x01, (pwm >> 8) & 0xFF, pwm & 0xFF])
-              if RX[:6] == expected_response:
-                   print('SetPWM')
-                   return True
-         return False
+         if 0 < id < 8:
+              RX = self.Read(8)
+              if Crc16_MODBUS(RX[:6]) == int.from_bytes(RX[6:], byteorder='little'):
+                   expected_response = bytes([id, 0x06, 0x00, 0x01, (pwm >> 8) & 0xFF, pwm & 0xFF])
+                   if RX[:6] == expected_response:
+                        print('SetPWM')
+                        return True
+              return False
     def AppPWM(self, id):
          self.Write(CalTx(0x02, 0x01, id, 0x06))
-         RX = self.Read(8)
-         if Crc16_MODBUS(RX[:6]) == int.from_bytes(RX[6:], byteorder='little'):
-              if RX[:6] == bytes([id, 0x06, 0x00, 0x02, 0x00, 0x01]):
-                   print('AppPWM')
-                   return True
-         return False
+         if 0 < id < 8:
+              RX = self.Read(8)
+              if Crc16_MODBUS(RX[:6]) == int.from_bytes(RX[6:], byteorder='little'):
+                   if RX[:6] == bytes([id, 0x06, 0x00, 0x02, 0x00, 0x01]):
+                        print('AppPWM')
+                        return True
+              return False
     def ReadCurrent(self, id):
-         self.Write(CalTx(0x05, 1, id, 0x03))
-         RX = self.Read(7)
-         if Crc16_MODBUS(RX[:5]) == int.from_bytes(RX[5:], byteorder='little'):
-              current_raw = (RX[3] << 8) | RX[4]
-              if current_raw >= 0x8000:
-                   current = current_raw - 0x10000
-              else:
-                   current = current_raw
-              return current
-         return False
+         if 0 < id < 8:
+              self.Write(CalTx(0x05, 1, id, 0x03))
+              RX = self.Read(7)
+              if Crc16_MODBUS(RX[:5]) == int.from_bytes(RX[5:], byteorder='little'):
+                   current_raw = (RX[3] << 8) | RX[4]
+                   if current_raw >= 0x8000:
+                        current = current_raw - 0x10000
+                   else:
+                        current = current_raw
+                   return current
+              return False
+         else:
+              print('WrongID')
+              return False
     def ReadVoltage(self, id):
-         self.Write(CalTx(0x06, 1, id, 0x03))
-         RX = self.Read(7)
-         if Crc16_MODBUS(RX[:5]) == int.from_bytes(RX[5:], byteorder='little'):
-              current_raw = (RX[3] << 8) | RX[4]
-              if current_raw >= 0x8000:
-                   current = current_raw - 0x10000
-              else:
-                   current = current_raw
-              return current
-         return False
+         if 0 < id < 8:
+              self.Write(CalTx(0x06, 1, id, 0x03))
+              RX = self.Read(7)
+              if Crc16_MODBUS(RX[:5]) == int.from_bytes(RX[5:], byteorder='little'):
+                   current_raw = (RX[3] << 8) | RX[4]
+                   if current_raw >= 0x8000:
+                        current = current_raw - 0x10000
+                   else:
+                        current = current_raw
+                   return current*10
+              return False
+         else:
+              print('WrongID')
+              return False
 def Crc16_MODBUS(datas):
     crc = 0xFFFF
     poly = 0xA001
@@ -120,12 +129,15 @@ driver = HelmholtzDriver()
 if driver.SerialPortDetect():
     driver.OpenSerialPort()
 
-    driver.Enable(2, 1)
-    driver.SetPWM(2, 20000)
-    driver.AppPWM(2)
-    time.sleep(3)
-    print('current', driver.ReadCurrent(2))
-    print(driver.ReadVoltage(2))
-    driver.Enable(2, 0)
+    driver.Enable(0, 1)
+    time.sleep(0.001)
+    driver.SetPWM(1, 1000)
+    driver.AppPWM(1)
+    time.sleep(1)
+    print('current', driver.ReadCurrent(1))
+    time.sleep(0.001)
+    print('voltage', driver.ReadVoltage(1))
+    time.sleep(0.001)
+    driver.Enable(0, 0)
 
     driver.CloseSerialPort()
